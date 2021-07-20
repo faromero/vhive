@@ -1,19 +1,9 @@
 {
     "functions": [
         {
-            "name": "helloworld",
-            "file": "helloworld.yaml",
+            "name": "image-rotate-s3",
+            "file": "image_rotate_s3.yaml",
             "count": 1
-        },
-        {
-            "name": "pyaes",
-            "file": "pyaes.yaml",
-            "count": 2
-        },
-        {
-            "name": "rnn-serving",
-            "file": "rnn_serving.yaml",
-            "count": 3
         }
     ]
 }
