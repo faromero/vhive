@@ -5,6 +5,7 @@ RUN pip3 install --user -r requirements.txt
 
 FROM vhiveease/py_grpc:base as var_workload
 COPY *.py /
+COPY common /common
 COPY --from=builder_workload /root/.local /root/.local
 RUN apk add libstdc++ --update --no-cache
 

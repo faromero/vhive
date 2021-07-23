@@ -1,8 +1,8 @@
 {
     "functions": [
         {
-            "name": "image-rotate-s3",
-            "file": "image_rotate_s3.yaml",
+            "name": "gg-port",
+            "file": "gg_port.yaml",
             "count": 1
         }
     ]
