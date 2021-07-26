@@ -8,9 +8,11 @@ COPY *.py /
 COPY common /common
 COPY --from=builder_workload /root/.local /root/.local
 RUN apk add libstdc++ --update --no-cache
-
+ENV APP_HOME /app
+WORKDIR $APP_HOME
 EXPOSE 50051
 
 STOPSIGNAL SIGKILL
 
-CMD ["/usr/local/bin/python", "/server.py"]
+CMD exec gunicorn --bind :50051 --workers 1 app:app
+# CMD ["/usr/local/bin/python", "/server.py"]

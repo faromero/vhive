@@ -1,17 +1,20 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
+  name: gg-port
   namespace: default
 spec:
   template:
     spec:
       containers:
-        - image: crccheck/hello-world:latest # Stub image. See https://github.com/ease-lab/vhive/issues/68
-          ports:
-            - name: h2c # For GRPC support
-              containerPort: 50051
-          env:
-            - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests
-              value: "50051"
-            - name: GUEST_IMAGE # Container image to use for firecracker-containerd container
-              value: "cbfarcan/gg_port:var_workload"
+            - image: docker.io/cbfarcan/gg_port:var_workload
+              imagePullPolicy: Always
+          
+          #ports:
+          # - name: 
+          # containerPort: 50051
+          # env:
+          # - name: GUEST_PORT # Port on which the firecracker-containerd container is accepting requests
+          #   value: "50051"
+          # - name: GUEST_IMAGE # Container image to use for firecracker-containerd container
+          #   value: "cbfarcan/gg_port:var_workload"
