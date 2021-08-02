@@ -14,5 +14,5 @@ EXPOSE 50051
 
 STOPSIGNAL SIGKILL
 
-CMD exec gunicorn --bind :50051 --workers 1 app:app
-# CMD ["/usr/local/bin/python", "/server.py"]
+#CMD exec gunicorn --bind :50051 --workers 1 app:app
+CMD ["/usr/local/bin/python", "/server.py"]
