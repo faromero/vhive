@@ -23,4 +23,4 @@ allows the function to be uploaded to a Docker Container, which is where Vhive c
 contains a list of packages to be installed for the python project to run
 
 ## helloworld_pb2_grpc.py/helloworld_pb2.py 
-allows the utilization of grpc
+allows the utilization of *[grpc]https://grpc.io/
