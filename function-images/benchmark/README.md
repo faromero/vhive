@@ -2,7 +2,7 @@
 This benchmark functions allows the user to simulate behavior of a variety of functions within the vHive environment, and thereby further explore applications. User calls a grpc client and requests from the grpc server the simulation of an application based on one or more of three parameters, 1) runtime, 2) access and downloading of an object of a specific size, 3)allocating memory on the heap. The grpc server completes the request and returns the response and leaves traces to be studied.
 
 
-## Server.py 
+## server.py 
 backbone of benchmark function, handles requests from grpc clients. 
 
 ## greeter_client.py 
