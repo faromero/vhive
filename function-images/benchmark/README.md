@@ -16,6 +16,8 @@ grpc client, takes input of a specific format and sends request to the server lo
   - if 'executiontime' parameter is used concurrently with other parameters, the 'executiontime' input must be at least enough to complete the other jobs, as it is the total runtime
   - if 'objectsize' parameter is used, the program assumes there's already a object of inputted size in /mybucket, else invoke the create_objectcreate_object_of_size_and_store_in_bucket.sh located at /function-images/minio_scripts/ to creat one
 
+Example: {'executiontime': 20000, 'objectsize':10, 'memoryallocate':10000}
+
 ## DOCKERFILE 
 allows the function to be uploaded to a [Docker](https://www.docker.com/) Container, which is where Vhive calls the server.py
 
