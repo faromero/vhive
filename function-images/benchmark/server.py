@@ -16,22 +16,23 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
     
     def SayHello(self, request, context):
         
-        msg = ''
+        
+        msg = '' #empty string, to be filled and returned to the client
         print('received: ' + request.name)
         userinput = json.loads(request.name)
         
-        if 'executiontime' in userinput:
+        if 'executiontime' in userinput:  # the case in which execution time is a desire parameter
             print('time requirement detected')
             elapsedtime1=0
             elapsedtime2=0
         
-            if 'memoryallocate' in userinput:
+            if 'memoryallocate' in userinput: # test whether memory allocation is a desired parameter
 
                 initialtime = time.time()
                 memorysize = userinput['memoryallocate']
                 mem = 0
 
-                with open('/proc/meminfo', 'r') as file:
+                with open('/proc/meminfo', 'r') as file:  # obtain memory info of the system by looking into the /proc/meminfo folder
                     data = file.read().replace('\n', '')
                     data = data.split()
                     mem = int(data[data.index('kBMemFree:')+1])
@@ -44,27 +45,28 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
                 else :
                     print('Allocating Memory of ' + str(memorysize) + ' kB')
 
-                    dummylist = [0]*int((memorysize*0.125*1000))
+                    dummylist = [0]*int((memorysize*0.125*1000)) 
                     elapsedtime1 = time.time() - initialtime
                     msg = msg + 'Memory Allocation benchmark Completled for ' + str(memorysize) + ' kB. Used ' + str(elapsedtime1) + ' seconds. \n'
                     
                     
-            if 'objectsize' in userinput:
+            if 'objectsize' in userinput: # test whether object size is a desired parameter
 
                 initialtime = time.time()
                 targetsize = userinput['objectsize']
                 print('Fetching an object of size ' + str(targetsize) +' kB')
+                # connect to minio storage server
                 client = Minio("10.138.0.34:9000", access_key="minioadmin", secret_key="minioadmin", secure=False)
 
                 buckets = client.list_buckets()
                 objectname = ''
                 for bucket in buckets:
-
-                    if bucket.name == 'mybucket':
+                     
+                    if bucket.name == 'mybucket': #locate desired bucket
                         objects = client.list_objects(bucket.name)
                         for objs in objects:
                             data = client.stat_object(bucket.name, objs.object_name)
-                            if data.size*0.001 == targetsize:#/1000*1024:                 
+                            if data.size*0.001 == targetsize: #/1000*1024:                 
                                 objectname = objs.object_name
                                 print('desired object found: '+objectname)
                                 break
@@ -75,7 +77,7 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
                     return helloworld_pb2.HelloReply(message = msg)
              
                 obj = client.get_object('mybucket', objectname)
-                with open("/tmp/" + objectname, "wb") as tmpfile:
+                with open("/tmp/" + objectname, "wb") as tmpfile:  # download file to /tmp
 
                     for d in obj.stream(32*1024):
                         tmpfile.write(d)
@@ -86,10 +88,11 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
                 elapsedtime2 = time.time()-initialtime
                 msg = msg + 'Objectsize benchmark completed for ' + str(targetsize) +' kB. File stored in \\tmp, used '+ str(elapsedtime2)+' miliseconds. \n'
 
-            if 'executiontime' in userinput:
+            if 'executiontime' in userinput: 
 
                 targettime = userinput['executiontime']
                 timeleft = targettime*0.001 - elapsedtime1 - elapsedtime2
+                # verify there is the time input is enough to complete all the tasks
                 if timeleft < 0:
                     msg = 'More time needed for the other benchmark operations'
                     return helloworld_pb2.HelloReply(message=msg)
@@ -106,7 +109,7 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
             return helloworld_pb2.HelloReply(message=msg)
 
         
-        else:
+        else: # the alternate case in which there is no time requirement
             print('No time requirement')
             if 'memoryallocate' in userinput:
 
