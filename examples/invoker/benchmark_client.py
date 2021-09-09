@@ -6,6 +6,9 @@ import helloworld_pb2
 import helloworld_pb2_grpc
 
 def SayHello(address):
+    
+    
+    # Python argparse library
     parser = argparse.ArgumentParser()
     parser.add_argument('--time', '-t', help='input desired execution time in unit miliseconds', type= int, dest = 'executiontime', required = False)
     parser.add_argument('--size','-s',  help = 'input desired object size in unit of kB', type = int, dest = 'objectsize', required=False)
@@ -13,14 +16,15 @@ def SayHello(address):
     args = parser.parse_args()
     print(type(args))
 
+    # initialize constants
     runDuration = 5; # Run the experiment for 5 seconds                           
     targetRPS = 1.0 # Target requests per second                                  
-
-
+    
+    #establish connection
     with grpc.insecure_channel(address) as channel:
 
         stub = helloworld_pb2_grpc.GreeterStub(channel)
-        userinput = {}
+        userinput = {} # Json object to store input
         input_exists = False
 
         if args.executiontime:
@@ -37,19 +41,26 @@ def SayHello(address):
             m_json = {'memoryallocate': args.memoryallocate}
             userinput.update(m_json)
             input_exists = True
+         
+        # case if no flag input
         if input_exists == False:
             print('Error Message: Please input at least one parameter to be benchmark-simulated. Type with -h flag to see parameter input flags')
             return
+        
         input_str = json.dumps(userinput)
         print('sending string input: ' + input_str)
         response = stub.SayHello(helloworld_pb2.HelloRequest(name=input_str))
         print('SayHello Completed')
         print(str(response))
+
+        
+        
 def readEndpoints():
 
     with open('/home/yalew/vhive/endpoints.json',"r" ) as json_file:
-        data = json.load(json_file)[0]
+        data = json.load(json_file)[0]     #  !!! As of currently, this function only works for the first entry of endpoints.json. I did this to test the latter components first.
         return data
+    
 def mainfunc():
     parser = argparse.ArgumentParser()
     parser.add_argument('executiontime', help='input desired execution time in unit miliseconds', type= int)
