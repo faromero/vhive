@@ -7,12 +7,9 @@ import helloworld_pb2_grpc
 
 def SayHello(address):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--time', '-t', help='input desired execution time in uni\
-t miliseconds', type= int, dest = 'executiontime', required = False)
-    parser.add_argument('--size','-s',  help = 'input desired object size in unit\
- of kB', type = int, dest = 'objectsize', required=False)
-    parser.add_argument('--mem','-m', help = 'input desired memory allocation siz\
-e in unit of kB', type = int, dest='memoryallocate',  required= False)
+    parser.add_argument('--time', '-t', help='input desired execution time in unit miliseconds', type= int, dest = 'executiontime', required = False)
+    parser.add_argument('--size','-s',  help = 'input desired object size in unit of kB', type = int, dest = 'objectsize', required=False)
+    parser.add_argument('--mem','-m', help = 'input desired memory allocation size in unit of kB', type = int, dest='memoryallocate',  required= False)
     args = parser.parse_args()
     print(type(args))
 
@@ -41,8 +38,7 @@ e in unit of kB', type = int, dest='memoryallocate',  required= False)
             userinput.update(m_json)
             input_exists = True
         if input_exists == False:
-            print('Error Message: Please input at least one parameter to be bench\
-mark-simulated. Type with -h flag to see parameter input flags')
+            print('Error Message: Please input at least one parameter to be benchmark-simulated. Type with -h flag to see parameter input flags')
             return
         input_str = json.dumps(userinput)
         print('sending string input: ' + input_str)
@@ -56,12 +52,9 @@ def readEndpoints():
         return data
 def mainfunc():
     parser = argparse.ArgumentParser()
-    parser.add_argument('executiontime', help='input desired execution time in un\
-it miliseconds', type= int)
-    parser.add_argument('objectsize', help = 'input desired object size in unit o\
-f kB', type = int)
-    parser.add_argument('memoryallocate', help = 'input desired memory allocation\
- size in unit of kB', type = int)
+    parser.add_argument('executiontime', help='input desired execution time in unit miliseconds', type= int)
+    parser.add_argument('objectsize', help = 'input desired object size in unit of kB', type = int)
+    parser.add_argument('memoryallocate', help = 'input desired memory allocation size in unit of kB', type = int)
     endpointsinfo = readEndpoints()
     address = endpointsinfo['hostname']
     SayHello(address)
