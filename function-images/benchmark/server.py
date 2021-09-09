@@ -13,176 +13,143 @@ import helloworld_pb2
 import helloworld_pb2_grpc
 
 class Greeter(helloworld_pb2_grpc.GreeterServicer):
-    
-    def SayHello(self, request, context):
-        
-        
-        msg = '' #empty string, to be filled and returned to the client
-        print('received: ' + request.name)
-        userinput = json.loads(request.name)
-        
-        if 'executiontime' in userinput:  # the case in which execution time is a desire parameter
-            print('time requirement detected')
-            elapsedtime1=0
-            elapsedtime2=0
-        
-            if 'memoryallocate' in userinput: # test whether memory allocation is a desired parameter
+  # Get current time in ms
+  def _getMilliTime(self):
+    return round(time.time() * 1e3)
 
-                initialtime = time.time()
-                memorysize = userinput['memoryallocate']
-                mem = 0
+  # Function to allocate memory
+  # Input is memory amount in KB
+  # Returns allocated_list (None if failed)
+  def _doMemoryAllocation(self, mem_amount_kb):
+    # Obtain memory info of the system by looking into the /proc/meminfo folder
+    mem_limit = 0
+    with open('/proc/meminfo', 'r') as file:
+      data = file.read().replace('\n', '')
+      data = data.split()
+      mem_limit = int(data[data.index('kBMemFree:')+1])
+      mem_limit *= 0.125 # Convert to KB
 
-                with open('/proc/meminfo', 'r') as file:  # obtain memory info of the system by looking into the /proc/meminfo folder
-                    data = file.read().replace('\n', '')
-                    data = data.split()
-                    mem = int(data[data.index('kBMemFree:')+1])
+    dummylist = None
+    if mem_limit < mem_amount_kb:
+      print('Not enough free memory!')
+      return dummylist
 
-                if mem < memorysize:
-                    msg = 'Not enough memory on the heap. Try a smaller size.'
-                    print('Not enough free memory!')
-                    return helloworld_pb2.HelloReply(message = msg)
+    # Allocate memory amout specified
+    print('Allocating %dKB' % mem_amount_kb)
+    mem_amount_b = round(mem_amount_kb*1024)
+    dummylist = [0] * mem_amount_b
 
-                else :
-                    print('Allocating Memory of ' + str(memorysize) + ' kB')
+    return dummylist
 
-                    dummylist = [0]*int((memorysize*0.125*1000)) 
-                    elapsedtime1 = time.time() - initialtime
-                    msg = msg + 'Memory Allocation benchmark Completled for ' + str(memorysize) + ' kB. Used ' + str(elapsedtime1) + ' seconds. \n'
-                    
-                    
-            if 'objectsize' in userinput: # test whether object size is a desired parameter
+  # Function to request from object storage
+  # Input is object size in KB
+  # Returns object size that was fetched (None if failed)
+  def _doStorageRequest(self, object_size_kb):
+    print('Fetching an object of size %dKB' % object_size_kb)
 
-                initialtime = time.time()
-                targetsize = userinput['objectsize']
-                print('Fetching an object of size ' + str(targetsize) +' kB')
-                # connect to minio storage server
-                client = Minio("10.138.0.34:9000", access_key="minioadmin", secret_key="minioadmin", secure=False)
+    # Connect to minio storage server
+    client = Minio("10.138.0.34:9000", access_key="minioadmin", secret_key="minioadmin", secure=False)
 
-                buckets = client.list_buckets()
-                objectname = ''
-                for bucket in buckets:
-                     
-                    if bucket.name == 'mybucket': #locate desired bucket
-                        objects = client.list_objects(bucket.name)
-                        for objs in objects:
-                            data = client.stat_object(bucket.name, objs.object_name)
-                            if data.size*0.001 == targetsize: #/1000*1024:                 
-                                objectname = objs.object_name
-                                print('desired object found: '+objectname)
-                                break
+    buckets = client.list_buckets()
+    objectname = None
+    for bucket in buckets:
+      if bucket.name == 'mybucket': # Locate desired bucket
+        objects = client.list_objects(bucket.name)
+        for objs in objects:
+          data = client.stat_object(bucket.name, objs.object_name)
+          data_size = data.size * 1e3
+          if data_size == object_size_kb: #/1000*1024:                 
+            objectname = objs.object_name
+            print('Desired object found: %s' % objectname)
+            break
 
-                if objectname == '':
-                    msg = 'object of desired size does not exist in the bucket.'
-                    print('object not found')
-                    return helloworld_pb2.HelloReply(message = msg)
-             
-                obj = client.get_object('mybucket', objectname)
-                with open("/tmp/" + objectname, "wb") as tmpfile:  # download file to /tmp
+    if objectname is None:
+      print('Object not found')
+      return objectname
+ 
+    obj = client.get_object('mybucket', objectname)
+    # Download file to /tmp
+    with open(os.path.join("/tmp/", objectname), "wb") as tmpfile:
+      for d in obj.stream(32*1024):
+        tmpfile.write(d)
+      print('Saved to /tmp directory')
 
-                    for d in obj.stream(32*1024):
-                        tmpfile.write(d)
-                    print('saved to //tmp directory')
-                obj.close()
-                obj.release_conn()
+    obj.close()
+    obj.release_conn()
 
-                elapsedtime2 = time.time()-initialtime
-                msg = msg + 'Objectsize benchmark completed for ' + str(targetsize) +' kB. File stored in \\tmp, used '+ str(elapsedtime2)+' miliseconds. \n'
+    return objectname
 
-            if 'executiontime' in userinput: 
+  # Function to "execute" for a set amount of time in ms
+  # Input is the amount of time to execute for
+  # No return value
+  def _doExecutionTime(self, input_time_ms):
+    print ('Running for %d ms' % input_time_ms)
 
-                targettime = userinput['executiontime']
-                timeleft = targettime*0.001 - elapsedtime1 - elapsedtime2
-                # verify there is the time input is enough to complete all the tasks
-                if timeleft < 0:
-                    msg = 'More time needed for the other benchmark operations'
-                    return helloworld_pb2.HelloReply(message=msg)
+    curr_time_ms = self._getMilliTime()
+    end_time = curr_time_ms + input_time_ms
+    while curr_time_ms < end_time:
+      dummyoperation = 1 + 1
+      curr_time_ms = self._getMilliTime()
 
-                print('waiting for ' + str(timeleft) +' more seconds')
-                timeout = time.time() + targettime * 0.001
-                while time.time() < timeout:
+    return
 
-                    dummyoperation = 1 + 1
+  def SayHello(self, request, context):
+    msg = '' # Message to return to client
+    userinput = json.loads(request.name)
 
-                msg = msg + 'Executiontime benchmark completed for ' + str(targettime) + ' miliseconds. Terminated at: ' + str(timeout) + '\n'
-                print(msg)
+    memorysize = userinput.get('memoryallocate', None)
+    objectsize = userinput.get('objectsize', None)
+    executiontime = userinput.get('executiontime', 200)
 
-            return helloworld_pb2.HelloReply(message=msg)
+    memory_allocation_time = 0
+    object_fetch_time = 0
 
-        
-        else: # the alternate case in which there is no time requirement
-            print('No time requirement')
-            if 'memoryallocate' in userinput:
+    # Check if user asked to do a memory allocation
+    if memorysize is not None:
+      memory_allocation_timer_start = self._getMilliTime()
+      allocated_list = self._doMemoryAllocation(memorysize)
 
-                initialtime = time.time()
-                memorysize = userinput['memoryallocate']
-                mem = 0
+      if allocated_list is None:
+        msg = 'Not enough memory on the heap. Try a smaller size.'
+        return helloworld_pb2.HelloReply(message=msg)
 
-                with open('/proc/meminfo', 'r') as file:
-                    data = file.read().replace('\n', '')
-                    data = data.split()
-                    mem = int(data[data.index('kBMemFree:')+1])
+      memory_allocation_time = self._getMilliTime() - memory_allocation_timer_start
+      msg = 'Allocated %dKB in %dms\n' % (memorysize, memory_allocation_time)
 
-                if mem < memorysize:
-                    msg = 'Not enough memory on the heap. Try a smaller size.'
-                    print('Not enough free memory!')
-                    return helloworld_pb2.HelloReply(message = msg)
+    # Check whether user asked to do a remote storage fetch
+    if objectsize is not None:
+      object_fetch_timer_start = self._getMilliTime()
+      objectname = self._doStorageRequest(objectsize)
 
-                else :
-                    print('Allocating Memory of ' + str(memorysize) + ' kB')
+      if objectname is None:
+        msg = msg + 'Object of desired size does not exist in the bucket.\n'
+        return helloworld_pb2.HelloReply(message=msg)
 
-                    dummylist = [0]*int((memorysize*0.125*1000))
-                    elapsedtime = time.time() - initialtime
-                    msg = msg + 'Memory Allocation benchmark Completled for ' + str(memorysize) + ' kB. Used ' + str(elapsedtime) + ' seconds.'
-                    
-            if 'objectsize' in userinput:
+      object_fetch_time = self._getMilliTime() - object_fetch_timer_start
+      msg = msg + '%dKB fetched to /tmp in %dms\n' % (objectsize, object_fetch_time)
 
-                initialtime = time.time()
-                targetsize = userinput['objectsize']
-                print('Fetching an object of size ' + str(targetsize) +' kB')
-                client = Minio("10.138.0.34:9000", access_key="minioadmin", secret_key="minioadmin", secure=False)
-                buckets = client.list_buckets()
-                objectname = ''
-                for bucket in buckets:
+    # Run execution time
+    timeleft = executiontime - memory_allocation_time - object_fetch_time
 
-                    if bucket.name == 'mybucket':
-                        objects = client.list_objects(bucket.name)
-                        for objs in objects:
-                            data = client.stat_object(bucket.name, objs.object_name)
-                            if data.size*0.001 == targetsize: #/1000*1024:                
-                                objectname = objs.object_name
-                                print('desired object found: '+objectname)
-                                break
-                                
-                if objectname == '':
-                    msg = 'object of desired size does not exist in the bucket.'
-                    print('object not found')
-                    return helloworld_pb2.HelloReply(message = msg)
+    # Verify the time input is sufficient
+    if timeleft < 0:
+      msg = msg + 'More time needed for the other benchmark operations.\n'
+      return helloworld_pb2.HelloReply(message=msg)
 
-                obj = client.get_object('mybucket', objectname)
-                with open("/tmp/" + objectname, "wb") as tmpfile:
+    self._doExecutionTime(timeleft)
+    msg = msg + 'Execution time completed for %dms' % executiontime
 
-                    for d in obj.stream(32*1024):
-                        tmpfile.write(d)
+    print(msg)
+    return helloworld_pb2.HelloReply(message=msg)
 
-                        print('saved to //tmp directory')
-
-                obj.close()
-                obj.release_conn()
-
-                elapsedtime = time.time()-initialtime
-                msg = msg + 'Objectsize benchmark completed for ' + str(targetsize) +' kB. File stored in \\tmp, used '+ str(elapsedtime)+' miliseconds.\n'
-            print(msg)
-            return helloworld_pb2.HelloReply(message=msg)
-        
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=5))
-    helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), server)
-    server.add_insecure_port('[::]:50051')
-    server.start()
-    server.wait_for_termination()
-if __name__ == '__main__':
-    logging.basicConfig()
-    serve()
+  server = grpc.server(futures.ThreadPoolExecutor(max_workers=5))
+  helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), server)
+  server.add_insecure_port('[::]:50051')
+  server.start()
+  server.wait_for_termination()
 
-                    
-                
+if __name__ == '__main__':
+  logging.basicConfig()
+  serve()
+

@@ -9,7 +9,7 @@ def run():
         
         stub = helloworld_pb2_grpc.GreeterStub(channel)
         
-        userinput = {'objectsize':10000, 'executiontime':500}
+        userinput = {'memoryallocate':1024, 'executiontime':500}
         input_str = json.dumps(userinput)
         print('sending string input: ' + input_str)
         response = stub.SayHello(helloworld_pb2.HelloRequest(name=input_str))
