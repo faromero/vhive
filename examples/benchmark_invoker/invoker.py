@@ -9,6 +9,9 @@ import pandas as pd
 import helloworld_pb2
 import helloworld_pb2_grpc
 
+# Endpoint file (used when traces are specified)
+endpoint_file = 'benchmark_endpoints.txt'
+
 # Limit traces to particular day(s) (between 1 to 14)
 # If set to empty list, will process all
 filter_days = [1]
@@ -33,12 +36,15 @@ def getArgs():
 
 # Function for reading in endpoint from file        
 def readEndpoints():
-  with open('/home/yalew/vhive/endpoints.json',"r" ) as json_file:
-    data = json.load(json_file)[0] # Works for first entry of endpoints.json
-    return data
+  endpoints_list = []
+  fd = open(endpoint_file, 'r')
+  for l in lines:
+    endpoints_list.append(l.strip())
+  fd.close()
+
+  return endpoints_list
 
 def parseTraces(tracedir):
-
   # Helper function to check whether a trace should be parsed
   def shouldParse(trace_name):
     if not filter_days:
@@ -102,17 +108,41 @@ def queryFunction(endpoint, executiontime, objectsize, memoryallocate):
     response = stub.SayHello(helloworld_pb2.HelloRequest(name=input_str))
     print(response)
 
-def runExperiment(endpoint, invocations_map, memory_map, duration_map):
-  pass
+def runExperiment(endpoints, invocations_map, memory_map, duration_map):
+  # Helper function to map functions to endpoints, and map functions to app hash
+  # The latter is to speed up searches for memory
+  def mapEndpoints(endpoints, duration_map):
+    endpoint_map = {}
+    func_app_map = {}
+    for _, v in duration_map.items():
+      for _, row in v.iterrows():
+        hash_app = row['HashApp']
+        hash_function = row['HashFunction']
+        if len(endpoints) > 0:
+          next_endpoint = endpoints[0]
+          endpoints.pop(0)
+          endpoint_map[hash_function] = next_endpoint
+          func_app_map[hash_function] = hash_app
+        else:
+          break
+      if len(endpoints) == 0:
+        break
+
+    return endpoint_map, func_app_map
+
+  endpoint_map, func_app_map = mapEndpoints(endpoints, duration_map)
+  print(endpoint_map, func_app_map)
+  return
 
 def main(args):
-  endpoint = args.endpoint
   tracedir = args.tracedir
 
   if tracedir is not None:
+    endpoints = readEndpoints()
     invocations_map, memory_map, duration_map = parseTraces(tracedir)
-    runExperiment(endpoint, invocations_map, memory_map, duration_map)
+    runExperiment(endpoints, invocations_map, memory_map, duration_map)
   else:
+    endpoint = args.endpoint
     executiontime = args.executiontime
     objectsize = args.objectsize
     memoryallocate = args.memoryallocate
