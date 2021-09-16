@@ -143,6 +143,7 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
     return helloworld_pb2.HelloReply(message=msg)
 
 def serve():
+  print('Running benchmark application')
   server = grpc.server(futures.ThreadPoolExecutor(max_workers=5))
   helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), server)
   server.add_insecure_port('[::]:50051')
