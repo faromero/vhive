@@ -18,8 +18,9 @@ filter_days = [1]
 
 def getArgs():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--endpoint', '-e', type=str, required=True,
-                      dest='endpoint', help='Endpoint to query')
+  parser.add_argument('--endpoint', '-e', type=str, required=False,
+                      dest='endpoint', default='http://localhost:80',
+                      help='Endpoint to query')
   parser.add_argument('--tracedir', '-d', type=str, required=False,
                       dest='tracedir', default=None,
                       help='Path to traces directory. If not specified, will use manually-inputted parameters.')
@@ -38,7 +39,7 @@ def getArgs():
 def readEndpoints():
   endpoints_list = []
   fd = open(endpoint_file, 'r')
-  for l in lines:
+  for l in fd:
     endpoints_list.append(l.strip())
   fd.close()
 
@@ -95,13 +96,13 @@ def queryFunction(endpoint, executiontime, objectsize, memoryallocate):
     inputjson = {} # Json object to store input
 
     if executiontime > 0:
-      inputjson['executiontime'] = executiontime
+      inputjson['executiontime'] = int(executiontime)
 
     if objectsize > 0:
-      inputjson['objectsize'] = objectsize 
+      inputjson['objectsize'] = int(objectsize)
 
     if memoryallocate > 0:
-      inputjson['memoryallocate'] = memoryallocate 
+      inputjson['memoryallocate'] = int(memoryallocate)
      
     input_str = json.dumps(inputjson)
     print('Querying for: %s' % input_str)
@@ -131,7 +132,18 @@ def runExperiment(endpoints, invocations_map, memory_map, duration_map):
     return endpoint_map, func_app_map
 
   endpoint_map, func_app_map = mapEndpoints(endpoints, duration_map)
-  print(endpoint_map, func_app_map)
+
+  for k,v in endpoint_map.items():
+    function_name = k
+    function_app = func_app_map[function_name]
+    endpoint = v
+    # TODO: day is hardcoded
+    df_exec = duration_map['d01']
+    df_mem = memory_map['d01']
+    execution_time = df_exec.loc[df_exec.HashFunction == function_name]['percentile_Average_99'].iloc[0]
+    memory = df_mem.loc[df_mem.HashApp == function_app]['AverageAllocatedMb_pct99'].iloc[0]
+
+    queryFunction(endpoint, execution_time, 0, memory)
   return
 
 def main(args):
