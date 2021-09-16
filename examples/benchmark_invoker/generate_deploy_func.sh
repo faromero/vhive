@@ -37,8 +37,12 @@ for f in ${yaml_dir}/*.yaml; do
   kubectl apply --filename ${f}
   sleep 1
 
-  # Get endpoint and write it to a file
-  kn service describe ${name} -o url >> ${endpoints_file}
+  # Get endpoint
+  raw_endpoint=$(kn service describe ${name} -o url)
+
+  # Strip off http part, add port (:80), and write to file
+  cleaned_endpoint=`echo ${raw_endpoint} | sed 's/https\?:\/\///'`
+  echo "${cleaned_endpoint}:80" >> ${endpoints_file}
 done
 
 echo "Done deploying functions. Endpoints are in ${endpoints_file}"
