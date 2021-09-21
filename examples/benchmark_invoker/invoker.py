@@ -32,6 +32,10 @@ def getArgs():
   parser.add_argument('--numsec', '-s', type=int, required=False,
                       dest='numsec', default=5,
                       help='Number of seconds to simulate. -1 for all (Default: 5)')
+  parser.add_argument('--sorttraces', '-u', type=str, required=False,
+                      dest='sorttraces', default="default",
+                      choices=["mintime", "maxtime", "minmem", "maxmem", "default"],
+                      help='Number of seconds to simulate. -1 for all (Default: 5)')
   parser.add_argument('--executiontime', '-t', type=int, required=False,
                       dest='executiontime', default=0,
                       help='Execution time in ms (Default: 0 for skip)')
@@ -83,7 +87,8 @@ def runExperiment(queries_to_run, num_sec):
     for q in queries_to_run:
       num_invoc = q.invocations[i]
       # TODO: invoke in parallel
-      queryFunction(q.endpoint, q.execution_time, q.object_size, q.memory)
+      for ni in num_invoc:
+        queryFunction(q.endpoint, q.execution_time, q.object_size, q.memory)
 
   return
 
@@ -92,10 +97,11 @@ def main(args):
   min_range = args.minrange
   max_range = args.maxrange
   num_sec = args.numsec
+  sort_traces = args.sorttraces
 
   if tracedir is not None:
     endpoints = readEndpoints()
-    trace_manager = TraceManager(endpoints, tracedir, filter_days)
+    trace_manager = TraceManager(endpoints, tracedir, filter_days, sort_traces)
     queries_to_run = trace_manager.generateQueries(min_range, max_range)
     runExperiment(queries_to_run, num_sec)
   else:

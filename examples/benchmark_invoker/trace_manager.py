@@ -13,9 +13,10 @@ class TraceQuery(NamedTuple):
   invocations: np.ndarray
 
 class TraceManager(object):
-  def __init__(self, endpoints, tracedir, filter_days):
+  def __init__(self, endpoints, tracedir, filter_days, sort_traces):
     self.endpoints = endpoints
     self.filter_days = filter_days
+    self.sort_traces = sort_traces
 
     invocations_list, memory_list, duration_list = self.__parseTraces(tracedir)
     self.invocations_list = invocations_list
@@ -87,6 +88,19 @@ class TraceManager(object):
     joined_df = joined_df.apply(newRange)
 
     return joined_df
+
+  # Function to sort traces as indicated by user
+  # By the time this function is called, sort_traces will have been validated
+  def __sorttraces(self, df):
+    if self.sort_traces == "mintime":
+      return df.sort_values(by=['percentile_Average_99'], ascending=True)
+    elif self.sort_traces == "maxtime":
+      return df.sort_values(by=['percentile_Average_99'], ascending=False)
+    elif self.sort_traces == "minmem":
+      return df.sort_values(by=['AverageAllocatedMb_pct99'], ascending=True)
+    elif self.sort_traces == "maxmem":
+      return df.sort_values(by=['AverageAllocatedMb_pct99'], ascending=False)
+    else: # "default"
 
   # Function to map functions to endpoints, and map functions to app hash
   # The latter is to speed up searches for memory
