@@ -2,7 +2,10 @@ import os
 import sys
 import grpc
 import json
+import random
 import argparse
+from timeit import default_timer as now
+from multiprocessing import Process, Manager
 from trace_manager import TraceQuery, TraceManager
 
 import helloworld_pb2
@@ -13,7 +16,7 @@ endpoint_file = 'benchmark_endpoints.txt'
 
 # Limit traces to particular day(s) (between 1 to 14)
 # If set to empty list, will process all
-filter_days = [1,2]
+filter_days = [1]
 
 def getArgs():
   parser = argparse.ArgumentParser()
@@ -58,7 +61,7 @@ def readEndpoints():
   return endpoints_list
 
 # Set any of executiontime, objectsize, or memoryallocate to 0 to skip
-def queryFunction(endpoint, executiontime, objectsize, memoryallocate):
+def queryFunction(endpoint, executiontime, objectsize, memoryallocate, returndict):
   with grpc.insecure_channel(endpoint) as channel:
     stub = helloworld_pb2_grpc.GreeterStub(channel)
     inputjson = {} # Json object to store input
@@ -74,22 +77,38 @@ def queryFunction(endpoint, executiontime, objectsize, memoryallocate):
      
     input_str = json.dumps(inputjson)
     print('Querying for: %s' % input_str)
-    response = stub.SayHello(helloworld_pb2.HelloRequest(name=input_str))
 
-    return response
+    start = now()
+    response = stub.SayHello(helloworld_pb2.HelloRequest(name=input_str))
+    end = now()
+
+    e2e_time = (end - start) * 1e3
+
+    # Append a random number to track
+    return_key = '%s-%d' % (input_str, random.randint(0,1e6))
+    returndict[return_key] = e2e_time
 
 def runExperiment(queries_to_run, num_sec):
   # If num_sec is negative, determine the number of queries to run
   if num_sec < 0:
     num_sec = len(queries_to_run[0].invocations)
 
+  manager = Manager()
+  return_dict = manager.dict()
+
   for i in range(num_sec):
     for q in queries_to_run:
-      num_invoc = q.invocations[i]
-      # TODO: invoke in parallel
-      for ni in num_invoc:
-        queryFunction(q.endpoint, q.execution_time, q.object_size, q.memory)
+      num_invoc = int(q.invocations[i])
 
+      processes = [Process(target=queryFunction,
+                           args=(q.endpoint, q.execution_time, q.object_size, q.memory, return_dict))
+                           for x in range(num_invoc)]
+      for p in processes:
+        p.start()
+      for p in processes:
+        p.join()
+
+  print(return_dict)
   return
 
 def main(args):

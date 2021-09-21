@@ -101,6 +101,7 @@ class TraceManager(object):
     elif self.sort_traces == "maxmem":
       return df.sort_values(by=['AverageAllocatedMb_pct99'], ascending=False)
     else: # "default"
+      return df
 
   # Function to map functions to endpoints, and map functions to app hash
   # The latter is to speed up searches for memory
