@@ -2,11 +2,16 @@ import os
 import sys
 import grpc
 import json
-import random
+import time
 import argparse
+from threading import *
 from timeit import default_timer as now
 from multiprocessing import Process, Manager
 from trace_manager import TraceQuery, TraceManager
+
+from kubernetes import config, client
+from kubernetes.client import Configuration
+from kubernetes.client.api import core_v1_api
 
 import helloworld_pb2
 import helloworld_pb2_grpc
@@ -60,8 +65,29 @@ def readEndpoints():
 
   return endpoints_list
 
+# Function to monitor how many pods per-function are spun up
+# Note that we treat the return_dict as a set
+def podMonitorDaemon(return_dict, stop):
+  # Get kubernetes client
+  config.load_kube_config()
+  c = Configuration().get_default_copy()
+  Configuration.set_default(c)
+  core_v1 = core_v1_api.CoreV1Api()
+
+  while True:
+    curr_pods = core_v1.list_namespaced_pod("default")
+    for pod in curr_pods.items:
+      curr_name = pod.metadata.name
+
+      # Add to dictionary (treatign as a set)
+      return_dict[curr_name] = 1
+
+    if stop():
+      break
+    time.sleep(1)
+
 # Set any of executiontime, objectsize, or memoryallocate to 0 to skip
-def queryFunction(endpoint, executiontime, objectsize, memoryallocate, returndict):
+def queryFunction(functionname, endpoint, executiontime, objectsize, memoryallocate, returndict):
   with grpc.insecure_channel(endpoint) as channel:
     stub = helloworld_pb2_grpc.GreeterStub(channel)
     inputjson = {} # Json object to store input
@@ -76,7 +102,7 @@ def queryFunction(endpoint, executiontime, objectsize, memoryallocate, returndic
       inputjson['memoryallocate'] = int(memoryallocate)
      
     input_str = json.dumps(inputjson)
-    print('Querying for: %s' % input_str)
+    # print('Querying for: %s' % input_str)
 
     start = now()
     response = stub.SayHello(helloworld_pb2.HelloRequest(name=input_str))
@@ -84,32 +110,54 @@ def queryFunction(endpoint, executiontime, objectsize, memoryallocate, returndic
 
     e2e_time = (end - start) * 1e3
 
-    # Append a random number to track
-    return_key = '%s-%d' % (input_str, random.randint(0,1e6))
-    returndict[return_key] = e2e_time
+    # With a manager dict, we cannot simply append to the list from within the dictionary.
+    next_list = returndict[functionname]
+    next_list.append(e2e_time)
+    returndict[functionname] = next_list 
 
 def runExperiment(queries_to_run, num_sec):
   # If num_sec is negative, determine the number of queries to run
   if num_sec < 0:
     num_sec = len(queries_to_run[0].invocations)
 
+  # Track total number of times a function is invoked
+  func_invoc_dict = {}
+
+  # Shared dictionaries
   manager = Manager()
-  return_dict = manager.dict()
+  daemon_measurement_dict = manager.dict()
+  func_measurement_dict = manager.dict()
+
+  # Launch daemon thread with a stop flag lambda
+  stop_flag = False
+  daemon = Thread(target=podMonitorDaemon, args=(daemon_measurement_dict, lambda: stop_flag))
+  daemon.setDaemon(True)
+  daemon.start()
 
   for i in range(num_sec):
     for q in queries_to_run:
       num_invoc = int(q.invocations[i])
 
+      # Set up both dictionaries at the same time
+      if q.function_name not in func_measurement_dict:
+        func_measurement_dict[q.function_name] = []
+        func_invoc_dict[q.function_name] = 0
+      func_invoc_dict[q.function_name] += num_invoc
+
       processes = [Process(target=queryFunction,
-                           args=(q.endpoint, q.execution_time, q.object_size, q.memory, return_dict))
+                           args=(q.function_name, q.endpoint, q.execution_time,
+                                 q.object_size, q.memory, func_measurement_dict))
                            for x in range(num_invoc)]
       for p in processes:
         p.start()
       for p in processes:
         p.join()
 
-  print(return_dict)
-  return
+  # Tell the daemon to exit
+  stop_flag = True
+  daemon.join()
+
+  return func_measurement_dict, daemon_measurement_dict, func_invoc_dict
 
 def main(args):
   tracedir = args.tracedir
@@ -122,7 +170,8 @@ def main(args):
     endpoints = readEndpoints()
     trace_manager = TraceManager(endpoints, tracedir, filter_days, sort_traces)
     queries_to_run = trace_manager.generateQueries(min_range, max_range)
-    runExperiment(queries_to_run, num_sec)
+    function_dict, daemon_dict, invoc_dict = runExperiment(queries_to_run, num_sec)
+    trace_manager.analyzeResults(function_dict, daemon_dict, invoc_dict)
   else:
     endpoint = args.endpoint
     executiontime = args.executiontime

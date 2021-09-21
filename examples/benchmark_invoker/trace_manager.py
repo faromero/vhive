@@ -6,6 +6,7 @@ import pandas as pd
 from typing import NamedTuple
 
 class TraceQuery(NamedTuple):
+  function_name: str
   endpoint: str
   execution_time: int
   memory: int
@@ -23,12 +24,45 @@ class TraceManager(object):
     self.memory_list = memory_list
     self.duration_list = duration_list
 
-  def generateQueries(self, min_range, max_range):
     endpoint_map, func_app_map = self.__mapEndpoints()
-    invoc_df = self.__mapInvocations(list(endpoint_map.keys()), min_range, max_range)
-    query_list = self.__generateQueryInputs(endpoint_map, func_app_map, invoc_df)
+    self.endpoint_map = endpoint_map
+    self.func_app_map = func_app_map
+
+  # Function to generate queries
+  def generateQueries(self, min_range, max_range):
+    invoc_df = self.__mapInvocations(list(self.endpoint_map.keys()), min_range, max_range)
+    query_list = self.__generateQueryInputs(self.endpoint_map, self.func_app_map, invoc_df)
 
     return query_list
+
+  def analyzeResults(self, function_dict, daemon_dict, invoc_dict):
+    # Map all daemon_dict pod names to the endpoint they correspond to
+    # This is everything before the third dash
+    endpoint_num_pods_map = {}
+    for d in daemon_dict.keys():
+      next_pod_name = d.split('-')
+      next_pod_name = '-'.join(next_pod_name[:3])
+
+      if next_pod_name not in endpoint_num_pods_map:
+        endpoint_num_pods_map[next_pod_name] = 0
+      endpoint_num_pods_map[next_pod_name] += 1
+
+    # Print function, endpoint, and p99
+    print()
+    print('function,num_invoc,numPods,p99(ms)')
+    for k,v in function_dict.items():
+      # Get the function's endpoint basename to then get number of pods
+      endpoint = self.endpoint_map[k].split('.')[0]
+      num_pods = endpoint_num_pods_map[endpoint]
+
+      # Get the p99
+      p99 = np.percentile(v, 99)
+
+      # Get the number of invocations
+      num_invoc = invoc_dict[k]
+
+      # Print results
+      print('%s,%d,%d,%d' % (k, num_invoc, num_pods, p99)) 
 
   # Function to generate query inputs
   def __generateQueryInputs(self, endpoint_map, func_app_map, invoc_df):
@@ -51,8 +85,9 @@ class TraceManager(object):
       invoc_row_np = invoc_row.to_numpy()[0]
 
       # Create the next query info
-      next_query_info = TraceQuery(endpoint=endpoint, execution_time=execution_time,
-                                   memory=memory, object_size=0, invocations=invoc_row_np)
+      next_query_info = TraceQuery(function_name=function_name, endpoint=endpoint,
+                                   execution_time=execution_time, memory=memory,
+                                   object_size=0, invocations=invoc_row_np)
       query_list.append(next_query_info)
 
     return query_list
